@@ -25,7 +25,13 @@ A responsive, full-stack AI chat application built with Next.js App Router, inte
    ```
    Ensure you provide a valid `DATABASE_URL` and `GEMINI_API_KEY`.
 
-3. **Development Server:**
+3. **Database Setup:**
+   Initialize your PostgreSQL database and run the Prisma migrations:
+   ```bash
+   npx prisma migrate dev
+   ```
+
+4. **Development Server:**
    ```bash
    npm run dev
    ```
@@ -39,5 +45,5 @@ A responsive, full-stack AI chat application built with Next.js App Router, inte
 ## Architecture Overview
 - **Frontend:** Next.js App Router, Tailwind CSS, shadcn/ui
 - **Backend:** Next.js Route Handlers
-- **Database:** PostgreSQL via Prisma (planned)
+- **Database:** PostgreSQL via Prisma
 - **AI Integration:** Google Gemini API SDK (`@google/genai`)

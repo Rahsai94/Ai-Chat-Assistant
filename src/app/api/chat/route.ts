@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { chatRequestSchema } from "@/lib/validations/chat";
 import { generateChatResponse } from "@/services/ai";
+import { createConversation, saveMessage, updateConversationTitle } from "@/services/conversation";
+
+function generateTitle(messageContent: string): string {
+  const title = messageContent.split("\n")[0].slice(0, 50).trim();
+  return title || "New Conversation";
+}
 
 export async function POST(req: Request) {
   try {
@@ -16,11 +22,24 @@ export async function POST(req: Request) {
       );
     }
 
-    const { messages } = parseResult.data;
+    const { messages, conversationId } = parseResult.data;
 
     // Optional: Filter system messages out if they shouldn't be processed here,
     // or limit the number of forwarded history items to manage tokens context limits.
     const relevantMessages = messages.slice(-50); // Hard cap at last 50 for context limits if not already handled by schema max length
+
+    // Handle DB persistence for user message
+    let currentConversationId = conversationId;
+    const latestUserMessage = messages[messages.length - 1];
+
+    if (!currentConversationId) {
+      // Create new conversation
+      const newConversation = await createConversation(generateTitle(latestUserMessage.content));
+      currentConversationId = newConversation.id;
+    }
+
+    // Save user message
+    await saveMessage(currentConversationId, latestUserMessage.role, latestUserMessage.content);
 
     // Fetch response from AI provider
     const aiResponse = await generateChatResponse(relevantMessages);
@@ -32,8 +51,12 @@ export async function POST(req: Request) {
       );
     }
 
+    // Save AI response
+    await saveMessage(currentConversationId, "assistant", aiResponse.text);
+
     // Return successful response mapped back to predictable frontend shape
     return NextResponse.json({
+      conversationId: currentConversationId,
       message: {
         role: "assistant",
         content: aiResponse.text,

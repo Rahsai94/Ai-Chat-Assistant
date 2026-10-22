@@ -9,6 +9,7 @@ export const messageSchema = z.object({
 });
 
 export const chatRequestSchema = z.object({
+  conversationId: z.string().optional(),
   messages: z.array(messageSchema).max(100, "Too many messages in history"),
 });
 

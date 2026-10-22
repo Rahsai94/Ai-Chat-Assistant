@@ -10,6 +10,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom when messages change
@@ -25,6 +26,7 @@ export default function ChatPage() {
       setMessages([])
       setInput("")
       setIsLoading(false)
+      setConversationId(undefined)
     }
     window.addEventListener('clear-chat', handleClearChat)
     return () => window.removeEventListener('clear-chat', handleClearChat)
@@ -66,6 +68,7 @@ export default function ChatPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          conversationId,
           messages: newMessages.map(({ role, content }) => ({ role, content })),
         }),
       })
@@ -76,6 +79,10 @@ export default function ChatPage() {
       }
 
       const data = await response.json()
+
+      if (data.conversationId && !conversationId) {
+        setConversationId(data.conversationId);
+      }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
