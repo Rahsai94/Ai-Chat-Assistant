@@ -19,7 +19,13 @@ function SidebarContent() {
   return (
     <div className="flex flex-col h-full bg-muted/30">
       <div className="p-4 border-b">
-        <Button className="w-full justify-start gap-2" variant="default">
+        <Button
+          className="w-full justify-start gap-2"
+          variant="default"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('clear-chat'))
+          }}
+        >
           <PlusCircle className="h-4 w-4" />
           New Chat
         </Button>

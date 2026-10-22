@@ -19,6 +19,17 @@ export default function ChatPage() {
     }
   }, [messages, isLoading])
 
+  // Listen for clear chat event from sidebar
+  useEffect(() => {
+    const handleClearChat = () => {
+      setMessages([])
+      setInput("")
+      setIsLoading(false)
+    }
+    window.addEventListener('clear-chat', handleClearChat)
+    return () => window.removeEventListener('clear-chat', handleClearChat)
+  }, [])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
   }
