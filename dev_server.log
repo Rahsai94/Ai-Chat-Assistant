@@ -5,11 +5,11 @@
 ▲ Next.js 16.4.2 (Turbopack)
 - Local:         http://localhost:3000
 - Network:       http://192.168.0.2:3000
-✓ Ready in 568ms
-✓ Running next.config.ts took 50ms
+✓ Ready in 651ms
+✓ Running next.config.ts took 51ms
 - Cache Components enabled
 - Partial Prefetching enabled
 
-○ Compiling / ...
- GET / 200 in 600ms (next.js: 304ms, application-code: 296ms)
+ GET /chat 200 in 840ms (next.js: 347ms, application-code: 493ms)
+ GET /chat 200 in 102ms (next.js: 2ms, application-code: 100ms)
 [?25h
