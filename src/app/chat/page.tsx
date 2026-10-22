@@ -42,11 +42,10 @@ export default function ChatPage() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    simulateSubmit(input)
+    sendMessage(input)
   }
 
-  // Fixture submission handler for UI development
-  const simulateSubmit = (submittedText: string) => {
+  const sendMessage = async (submittedText: string) => {
     if (!submittedText.trim() || isLoading) return
 
     const userMessage: Message = {
@@ -55,20 +54,47 @@ export default function ChatPage() {
       content: submittedText.trim(),
     }
 
-    setMessages((prev) => [...prev, userMessage])
+    const newMessages = [...messages, userMessage]
+    setMessages(newMessages)
     setInput("")
     setIsLoading(true)
 
-    // Simulate AI response delay
-    setTimeout(() => {
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: newMessages.map(({ role, content }) => ({ role, content })),
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to fetch AI response")
+      }
+
+      const data = await response.json()
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `This is a simulated response to: "${submittedText.trim()}". The real AI integration will be implemented in a future phase.`,
+        content: data.message.content,
       }
+
       setMessages((prev) => [...prev, assistantMessage])
+    } catch (error: any) {
+      console.error("Failed to send message:", error)
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: `Error: ${error.message || "An unexpected error occurred. Please try again."}`,
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
       setIsLoading(false)
-    }, 1500)
+    }
   }
 
   return (

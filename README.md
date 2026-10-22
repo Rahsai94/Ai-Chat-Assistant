@@ -40,4 +40,4 @@ A responsive, full-stack AI chat application built with Next.js App Router, inte
 - **Frontend:** Next.js App Router, Tailwind CSS, shadcn/ui
 - **Backend:** Next.js Route Handlers
 - **Database:** PostgreSQL via Prisma (planned)
-- **AI Integration:** Vercel AI SDK & Google Gemini (planned)
+- **AI Integration:** Google Gemini API SDK (`@google/genai`)
