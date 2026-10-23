@@ -102,7 +102,7 @@ export default function ChatPage() {
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let done = false
-      let currentAssistantMessage: Message = {
+      const currentAssistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: "",
@@ -163,12 +163,10 @@ export default function ChatPage() {
         console.log("Stream aborted")
       } else {
         console.error("Failed to send message:", error)
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: `Error: ${error.message || "An unexpected error occurred. Please try again."}`,
-        }
-        setMessages((prev) => [...prev, errorMessage])
+
+        // Revert optimistic UI updates by restoring the user's input text and removing the unsaved messages
+        setInput(submittedText);
+        setMessages(messages); // restore messages back to what they were before the request
       }
     } finally {
       setIsLoading(false)

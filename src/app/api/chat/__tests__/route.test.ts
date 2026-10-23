@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../route';
 import { generateChatStream } from '@/services/ai';
-import { createConversation, saveMessage } from '@/services/conversation';
+import { createConversation, saveMessage, getConversation } from '@/services/conversation';
+import { getSessionId } from '@/lib/auth/session';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 // Mock the AI service
 vi.mock('@/services/ai', () => ({
@@ -12,11 +14,24 @@ vi.mock('@/services/conversation', () => ({
   createConversation: vi.fn(),
   saveMessage: vi.fn(),
   updateConversationTitle: vi.fn(),
+  getConversation: vi.fn(),
+}));
+
+vi.mock('@/lib/auth/session', () => ({
+  getSessionId: vi.fn(),
+}));
+
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: vi.fn(),
 }));
 
 describe('POST /api/chat', () => {
+  const mockSessionId = 'test-session-123';
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getSessionId).mockResolvedValue(mockSessionId);
+    vi.mocked(checkRateLimit).mockResolvedValue({ success: true, remaining: 49 });
   });
 
   const createRequest = (body: any) => {
@@ -69,6 +84,7 @@ describe('POST /api/chat', () => {
 
     vi.mocked(createConversation).mockResolvedValue({
       id: 'new-conv-123',
+      sessionId: mockSessionId,
       title: 'Hello',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -82,6 +98,13 @@ describe('POST /api/chat', () => {
 
     expect(res.status).toBe(429);
     expect(json.error).toBe('Rate limit exceeded. Please try again later.');
+  });
+
+  it('should return 429 if rate limit is exceeded', async () => {
+    vi.mocked(checkRateLimit).mockResolvedValue({ success: false, remaining: 0 });
+    const req = createRequest({ messages: [{ role: 'user', content: 'Hello' }] });
+    const res = await POST(req);
+    expect(res.status).toBe(429);
   });
 
   it('should return successful response formatted correctly and save to new conversation', async () => {
@@ -98,6 +121,7 @@ describe('POST /api/chat', () => {
 
     vi.mocked(createConversation).mockResolvedValue({
       id: 'new-conv-123',
+      sessionId: mockSessionId,
       title: 'Hello',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -128,11 +152,25 @@ describe('POST /api/chat', () => {
     expect(result).toContain('data: {"text":"from "}');
     expect(result).toContain('data: {"text":"AI"}');
 
-    expect(createConversation).toHaveBeenCalledWith('Hello');
+    expect(createConversation).toHaveBeenCalledWith('Hello', mockSessionId);
     expect(saveMessage).toHaveBeenCalledWith('new-conv-123', 'user', 'Hello');
   });
 
-  it('should save to existing conversation if conversationId is provided', async () => {
+  it('should return 403 if conversationId is provided but ownership fails', async () => {
+    vi.mocked(getConversation).mockResolvedValue(null);
+
+    const req = createRequest({
+      conversationId: 'existing-conv-456',
+      messages: [{ role: 'user', content: 'Hello again' }],
+    });
+    const res = await POST(req);
+
+    expect(res.status).toBe(403);
+    expect(createConversation).not.toHaveBeenCalled();
+    expect(saveMessage).not.toHaveBeenCalled();
+  });
+
+  it('should save to existing conversation if conversationId is provided and ownership succeeds', async () => {
     const mockStream = (async function* () {
       yield { text: 'Hello from AI' };
     })();
@@ -140,6 +178,15 @@ describe('POST /api/chat', () => {
     vi.mocked(generateChatStream).mockResolvedValue({
       success: true,
       stream: mockStream as any,
+    });
+
+    vi.mocked(getConversation).mockResolvedValue({
+      id: 'existing-conv-456',
+      sessionId: mockSessionId,
+      title: 'Old Title',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      messages: []
     });
 
     const req = createRequest({

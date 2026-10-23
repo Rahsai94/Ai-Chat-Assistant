@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { chatRequestSchema } from "@/lib/validations/chat";
 import { generateChatStream } from "@/services/ai";
-import { createConversation, saveMessage } from "@/services/conversation";
+import { createConversation, saveMessage, getConversation } from "@/services/conversation";
+import { getSessionId } from "@/lib/auth/session";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 function generateTitle(messageContent: string): string {
   const title = messageContent.split("\n")[0].slice(0, 50).trim();
@@ -10,6 +12,21 @@ function generateTitle(messageContent: string): string {
 
 export async function POST(req: Request) {
   try {
+    const sessionId = await getSessionId();
+
+    // Rate limiting: 50 requests per hour per session
+    const limit = 50;
+    const windowMs = 60 * 60 * 1000;
+    const rateLimitKey = `chat:${sessionId}`;
+    const rateLimitResult = await checkRateLimit(rateLimitKey, limit, windowMs);
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
 
     // Validate incoming request
@@ -32,12 +49,26 @@ export async function POST(req: Request) {
 
     if (!currentConversationId) {
       // Create new conversation
-      const newConversation = await createConversation(generateTitle(latestUserMessage.content));
+      const newConversation = await createConversation(generateTitle(latestUserMessage.content), sessionId);
       currentConversationId = newConversation.id;
+    } else {
+      // Verify ownership of existing conversation
+      const existingConversation = await getConversation(currentConversationId, sessionId);
+      if (!existingConversation) {
+        return NextResponse.json(
+          { error: "Conversation not found or unauthorized" },
+          { status: 403 }
+        );
+      }
     }
 
     // Save user message
-    await saveMessage(currentConversationId, latestUserMessage.role, latestUserMessage.content);
+    try {
+      await saveMessage(currentConversationId, latestUserMessage.role, latestUserMessage.content);
+    } catch (e) {
+      console.error("Failed to save user message", e);
+      return NextResponse.json({ error: "Failed to persist message" }, { status: 500 });
+    }
 
     // Fetch response stream from AI provider
     const aiResponse = await generateChatStream(relevantMessages);
