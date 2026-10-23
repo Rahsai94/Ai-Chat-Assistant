@@ -12,6 +12,7 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [conversationId, setConversationId] = useState<string | undefined>(undefined)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -19,6 +20,14 @@ export default function ChatPage() {
       scrollRef.current.scrollIntoView({ behavior: "smooth" })
     }
   }, [messages, isLoading])
+
+  const stop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+      setIsLoading(false)
+    }
+  }
 
   // Listen for clear chat event from sidebar
   useEffect(() => {
@@ -61,6 +70,8 @@ export default function ChatPage() {
     setInput("")
     setIsLoading(true)
 
+    abortControllerRef.current = new AbortController()
+
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -71,36 +82,97 @@ export default function ChatPage() {
           conversationId,
           messages: newMessages.map(({ role, content }) => ({ role, content })),
         }),
+        signal: abortControllerRef.current.signal,
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to fetch AI response")
+        const contentType = response.headers.get("Content-Type");
+        if (contentType && contentType.includes("application/json")) {
+           const errorData = await response.json();
+           throw new Error(errorData.error || "Failed to fetch AI response");
+        } else {
+           throw new Error("Failed to fetch AI response");
+        }
       }
 
-      const data = await response.json()
-
-      if (data.conversationId && !conversationId) {
-        setConversationId(data.conversationId);
+      if (!response.body) {
+        throw new Error("ReadableStream not yet supported in this browser.")
       }
 
-      const assistantMessage: Message = {
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let done = false
+      let currentAssistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: data.message.content,
+        content: "",
       }
 
-      setMessages((prev) => [...prev, assistantMessage])
+      setMessages((prev) => [...prev, currentAssistantMessage])
+
+      let buffer = ""
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read()
+        done = doneReading
+        const chunkValue = decoder.decode(value, { stream: true })
+
+        if (chunkValue) {
+          buffer += chunkValue
+          let lineEndIndex
+          while ((lineEndIndex = buffer.indexOf('\n\n')) >= 0) {
+            const block = buffer.slice(0, lineEndIndex).trim()
+            buffer = buffer.slice(lineEndIndex + 2)
+
+            if (block.startsWith("data: ")) {
+              const dataStr = block.slice("data: ".length)
+
+              if (dataStr === "[DONE]") {
+                continue
+              }
+
+              try {
+                const data = JSON.parse(dataStr)
+
+                if (data.conversationId && !conversationId) {
+                  setConversationId(data.conversationId)
+                }
+                if (data.text) {
+                  currentAssistantMessage.content += data.text
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === currentAssistantMessage.id ? { ...msg, content: currentAssistantMessage.content } : msg
+                    )
+                  )
+                }
+                if (data.error) {
+                  throw new Error(data.error)
+                }
+              } catch (e: any) {
+                if (e.message === dataStr) {
+                  throw e; // Rethrow explicit stream errors
+                }
+                console.error("Failed to parse SSE data chunk", e, "Chunk:", dataStr)
+              }
+            }
+          }
+        }
+      }
     } catch (error: any) {
-      console.error("Failed to send message:", error)
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: `Error: ${error.message || "An unexpected error occurred. Please try again."}`,
+      if (error.name === "AbortError") {
+        console.log("Stream aborted")
+      } else {
+        console.error("Failed to send message:", error)
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: `Error: ${error.message || "An unexpected error occurred. Please try again."}`,
+        }
+        setMessages((prev) => [...prev, errorMessage])
       }
-      setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
+      abortControllerRef.current = null
     }
   }
 
@@ -132,6 +204,7 @@ export default function ChatPage() {
         handleInputChange={handleInputChange}
         handleSubmit={handleSubmit}
         isLoading={isLoading}
+        stop={stop}
       />
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect } from "react"
-import { Send, Loader2 } from "lucide-react"
+import { Send, Loader2, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -10,6 +10,7 @@ interface MessageComposerProps {
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void
   isLoading: boolean
+  stop?: () => void
 }
 
 export function MessageComposer({
@@ -17,6 +18,7 @@ export function MessageComposer({
   handleInputChange,
   handleSubmit,
   isLoading,
+  stop,
 }: MessageComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -64,19 +66,27 @@ export function MessageComposer({
             aria-label="Message input"
           />
           <div className="absolute right-2 bottom-2">
-            <Button
-              type="submit"
-              size="icon"
-              disabled={isLoading || !input.trim()}
-              className="h-9 w-9 rounded-lg"
-              aria-label="Send message"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
+            {isLoading ? (
+              <Button
+                type="button"
+                size="icon"
+                onClick={stop}
+                className="h-9 w-9 rounded-lg bg-red-500 hover:bg-red-600 text-white"
+                aria-label="Stop generating"
+              >
+                <Square className="h-4 w-4 fill-current" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                size="icon"
+                disabled={!input.trim()}
+                className="h-9 w-9 rounded-lg"
+                aria-label="Send message"
+              >
                 <Send className="h-4 w-4" />
-              )}
-            </Button>
+              </Button>
+            )}
           </div>
         </form>
       </div>

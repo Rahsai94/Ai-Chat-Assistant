@@ -24,12 +24,13 @@ export async function getConversation(id: string) {
   });
 }
 
-export async function saveMessage(conversationId: string, role: string, content: string) {
+export async function saveMessage(conversationId: string, role: string, content: string, status: string = "completed") {
   return await prisma.message.create({
     data: {
       conversationId,
       role,
       content,
+      status,
     },
   });
 }

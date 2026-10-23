@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { chatRequestSchema } from "@/lib/validations/chat";
-import { generateChatResponse } from "@/services/ai";
-import { createConversation, saveMessage, updateConversationTitle } from "@/services/conversation";
+import { generateChatStream } from "@/services/ai";
+import { createConversation, saveMessage } from "@/services/conversation";
 
 function generateTitle(messageContent: string): string {
   const title = messageContent.split("\n")[0].slice(0, 50).trim();
@@ -24,9 +24,7 @@ export async function POST(req: Request) {
 
     const { messages, conversationId } = parseResult.data;
 
-    // Optional: Filter system messages out if they shouldn't be processed here,
-    // or limit the number of forwarded history items to manage tokens context limits.
-    const relevantMessages = messages.slice(-50); // Hard cap at last 50 for context limits if not already handled by schema max length
+    const relevantMessages = messages.slice(-50); // Hard cap at last 50
 
     // Handle DB persistence for user message
     let currentConversationId = conversationId;
@@ -41,26 +39,65 @@ export async function POST(req: Request) {
     // Save user message
     await saveMessage(currentConversationId, latestUserMessage.role, latestUserMessage.content);
 
-    // Fetch response from AI provider
-    const aiResponse = await generateChatResponse(relevantMessages);
+    // Fetch response stream from AI provider
+    const aiResponse = await generateChatStream(relevantMessages);
 
-    if (!aiResponse.success) {
+    if (!aiResponse.success || !aiResponse.stream) {
       return NextResponse.json(
-        { error: aiResponse.error },
+        { error: aiResponse.error || "Failed to generate AI stream" },
         { status: aiResponse.status || 500 }
       );
     }
 
-    // Save AI response
-    await saveMessage(currentConversationId, "assistant", aiResponse.text);
+    const stream = aiResponse.stream;
 
-    // Return successful response mapped back to predictable frontend shape
-    return NextResponse.json({
-      conversationId: currentConversationId,
-      message: {
-        role: "assistant",
-        content: aiResponse.text,
-      }
+    // Build a custom ReadableStream to stream the SSE chunks and track the full response for saving
+    let fullContent = "";
+
+    const customStream = new ReadableStream({
+      async start(controller) {
+        // Send initial metadata chunk
+        controller.enqueue(
+          new TextEncoder().encode(`data: {"conversationId": "${currentConversationId}"}\n\n`)
+        );
+
+        try {
+          for await (const chunk of stream) {
+            if (req.signal.aborted) {
+              await saveMessage(currentConversationId as string, "assistant", fullContent, "aborted");
+              return;
+            }
+
+            const textChunk = chunk.text;
+            if (textChunk) {
+              fullContent += textChunk;
+              controller.enqueue(
+                new TextEncoder().encode(`data: ${JSON.stringify({ text: textChunk })}\n\n`)
+              );
+            }
+          }
+
+          if (!req.signal.aborted) {
+             await saveMessage(currentConversationId as string, "assistant", fullContent, "completed");
+          }
+        } catch (error) {
+          console.error("Error during streaming", error);
+          await saveMessage(currentConversationId as string, "assistant", fullContent, "failed");
+          controller.enqueue(
+            new TextEncoder().encode(`data: {"error": "Stream interrupted"}\n\n`)
+          );
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(customStream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
     });
 
   } catch (error: any) {

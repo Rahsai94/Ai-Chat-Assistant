@@ -8,6 +8,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/tests/setup.ts'],
     globals: true,
+    env: {
+      GEMINI_API_KEY: 'test-key',
+    },
   },
   resolve: {
     alias: {

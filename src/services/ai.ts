@@ -56,3 +56,38 @@ export async function generateChatResponse(messages: Message[]) {
     };
   }
 }
+
+export async function generateChatStream(messages: Message[]) {
+  // Validate model config is available
+  if (!defaultModel) {
+    throw new Error("AI Model not configured.");
+  }
+
+  // Format messages for Gemini API
+  const contents = messages.map((msg) => ({
+    role: msg.role === "assistant" ? "model" : "user",
+    parts: [{ text: msg.content }],
+  }));
+
+  try {
+    const stream = await ai.models.generateContentStream({
+      model: defaultModel,
+      contents,
+    });
+    return { success: true, stream };
+  } catch (error: any) {
+    console.error("AI Generation Stream Error:", error.message || error);
+    if (error.status === 429) {
+      return {
+        success: false,
+        error: "Rate limit exceeded. Please try again later.",
+        status: 429,
+      };
+    }
+    return {
+      success: false,
+      error: "Failed to generate AI stream due to a provider error.",
+      status: 500,
+    };
+  }
+}
