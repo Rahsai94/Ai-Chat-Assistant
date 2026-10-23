@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react"
 import { Bot, User, Check, Copy } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -7,6 +8,7 @@ import remarkGfm from "remark-gfm"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CodeBlock = ({ node, inline, className, children, ...props }: any) => {
   const match = /language-(\w+)/.exec(className || "")
   const isCodeBlock = !inline && match

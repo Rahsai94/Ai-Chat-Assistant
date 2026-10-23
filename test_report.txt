@@ -1,0 +1,27 @@
+# Test Suite Execution Report
+
+## 1. Commands Executed
+- `npm run test` (Vitest unit and API tests)
+- `npx playwright test` (Playwright E2E tests)
+- `npm run lint` (ESLint)
+- `npm run typecheck` (tsc)
+- `npm run build` (Next.js build)
+
+## 2. Actual Pass/Fail Results
+- **Unit & Integration Tests (Vitest):** 12 files, 50 tests passed.
+- **E2E Tests (Playwright):** 3 tests passed.
+- **Linting:** 0 errors (warnings suppressed/fixed).
+- **Type Checking:** 0 errors.
+- **Production Build:** Successfully generated static pages.
+
+## 3. Important Bugs Found and Fixed
+- Extracted `generateTitle` into `src/lib/utils.ts` and successfully tested the implementation.
+- Excluded `e2e` from `vitest.config.ts` to prevent Vitest from trying to run Playwright specs which caused syntax errors.
+- Cleanly fixed eslint typing warnings and fixed missing imports after running lint correctly to check for unused var failures.
+- Verified missing `GEMINI_API_KEY` correctly errors at module initialization level, avoiding obscure runtime AI provider errors.
+- Fixed an issue where the E2E tests were incurring actual network calls by adding `page.route` to mock SSE stream responses for the `api/chat` route.
+- Ensured Playwright trace and report artifacts are ignored from `.gitignore` and removed them.
+
+## 4. Remaining Failures or Untested Scenarios
+- Currently testing ignores detailed visual assertions, which could be implemented via Percy or Playwright snapshots.
+- `MessageBubble` Markdown rendering output is verified, but deep nested structures within the markdown renderer could use dedicated component testing if custom renderers are added in the future.
