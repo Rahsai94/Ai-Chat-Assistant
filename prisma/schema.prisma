@@ -25,6 +25,7 @@ model Message {
   conversationId String
   role           String       // "user" or "assistant"
   content        String
+  status         String       @default("completed") // "completed", "failed", or "aborted"
   createdAt      DateTime     @default(now())
 
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

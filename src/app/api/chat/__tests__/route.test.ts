@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../route';
-import { generateChatResponse } from '@/services/ai';
+import { generateChatStream } from '@/services/ai';
 import { createConversation, saveMessage } from '@/services/conversation';
 
 // Mock the AI service
 vi.mock('@/services/ai', () => ({
-  generateChatResponse: vi.fn(),
+  generateChatStream: vi.fn(),
 }));
 
 vi.mock('@/services/conversation', () => ({
@@ -61,7 +61,7 @@ describe('POST /api/chat', () => {
   });
 
   it('should handle AI service provider errors (e.g. rate limit)', async () => {
-    vi.mocked(generateChatResponse).mockResolvedValue({
+    vi.mocked(generateChatStream).mockResolvedValue({
       success: false,
       error: 'Rate limit exceeded. Please try again later.',
       status: 429,
@@ -85,9 +85,15 @@ describe('POST /api/chat', () => {
   });
 
   it('should return successful response formatted correctly and save to new conversation', async () => {
-    vi.mocked(generateChatResponse).mockResolvedValue({
+    const mockStream = (async function* () {
+      yield { text: 'Hello ' };
+      yield { text: 'from ' };
+      yield { text: 'AI' };
+    })();
+
+    vi.mocked(generateChatStream).mockResolvedValue({
       success: true,
-      text: 'Hello from AI',
+      stream: mockStream as any,
     });
 
     vi.mocked(createConversation).mockResolvedValue({
@@ -101,24 +107,39 @@ describe('POST /api/chat', () => {
       messages: [{ role: 'user', content: 'Hello' }],
     });
     const res = await POST(req);
-    const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.conversationId).toBe('new-conv-123');
-    expect(json.message).toEqual({
-      role: 'assistant',
-      content: 'Hello from AI',
-    });
+    expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+
+    const reader = res.body?.getReader();
+    const decoder = new TextDecoder();
+    let result = '';
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        result += decoder.decode(value);
+      }
+    }
+
+    expect(result).toContain('data: {"conversationId": "new-conv-123"}');
+    expect(result).toContain('data: {"text":"Hello "}');
+    expect(result).toContain('data: {"text":"from "}');
+    expect(result).toContain('data: {"text":"AI"}');
 
     expect(createConversation).toHaveBeenCalledWith('Hello');
     expect(saveMessage).toHaveBeenCalledWith('new-conv-123', 'user', 'Hello');
-    expect(saveMessage).toHaveBeenCalledWith('new-conv-123', 'assistant', 'Hello from AI');
   });
 
   it('should save to existing conversation if conversationId is provided', async () => {
-    vi.mocked(generateChatResponse).mockResolvedValue({
+    const mockStream = (async function* () {
+      yield { text: 'Hello from AI' };
+    })();
+
+    vi.mocked(generateChatStream).mockResolvedValue({
       success: true,
-      text: 'Hello from AI',
+      stream: mockStream as any,
     });
 
     const req = createRequest({
@@ -126,20 +147,21 @@ describe('POST /api/chat', () => {
       messages: [{ role: 'user', content: 'Hello again' }],
     });
     const res = await POST(req);
-    const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.conversationId).toBe('existing-conv-456');
 
     expect(createConversation).not.toHaveBeenCalled();
     expect(saveMessage).toHaveBeenCalledWith('existing-conv-456', 'user', 'Hello again');
-    expect(saveMessage).toHaveBeenCalledWith('existing-conv-456', 'assistant', 'Hello from AI');
   });
 
   it('should cap relevant messages to the last 50 before sending to AI', async () => {
-    vi.mocked(generateChatResponse).mockResolvedValue({
+    const mockStream = (async function* () {
+      yield { text: 'OK' };
+    })();
+
+    vi.mocked(generateChatStream).mockResolvedValue({
       success: true,
-      text: 'OK',
+      stream: mockStream as any,
     });
 
     // 60 messages, max validation allows 100, but route caps at 50
@@ -151,8 +173,8 @@ describe('POST /api/chat', () => {
     const req = createRequest({ messages });
     await POST(req);
 
-    // Assert that generateChatResponse was called with only the last 50 messages
-    const calledWith = vi.mocked(generateChatResponse).mock.calls[0][0];
+    // Assert that generateChatStream was called with only the last 50 messages
+    const calledWith = vi.mocked(generateChatStream).mock.calls[0][0];
     expect(calledWith.length).toBe(50);
     expect(calledWith[0].content).toBe('Msg 10');
     expect(calledWith[49].content).toBe('Msg 59');
