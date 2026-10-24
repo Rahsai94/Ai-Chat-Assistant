@@ -47,3 +47,6 @@ A responsive, full-stack AI chat application built with Next.js App Router, inte
 - **Backend:** Next.js Route Handlers
 - **Database:** PostgreSQL via Prisma
 - **AI Integration:** Google Gemini API SDK (`@google/genai`)
+
+### Requirements
+- PostgreSQL with `pgvector` extension enabled.

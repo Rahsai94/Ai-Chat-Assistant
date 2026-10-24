@@ -5,6 +5,8 @@ import { generateChatStream } from "@/services/ai";
 import { createConversation, saveMessage, getConversation } from "@/services/conversation";
 import { getSessionId } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { prisma } from "@/lib/db/prisma";
+import { GoogleGenAI } from "@google/genai";
 
 function generateTitle(messageContent: string): string {
   const title = messageContent.split("\n")[0].slice(0, 50).trim();
@@ -42,7 +44,8 @@ export async function POST(req: Request) {
 
     const { messages, conversationId } = parseResult.data;
 
-    const relevantMessages = messages.slice(-50); // Hard cap at last 50
+
+    let relevantMessages = messages.slice(-50); // Hard cap at last 50
 
     // Handle DB persistence for user message
     let currentConversationId = conversationId;
@@ -69,6 +72,65 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error("Failed to save user message", e);
       return NextResponse.json({ error: "Failed to persist message" }, { status: 500 });
+    }
+
+    // Check for relevant documents
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: process.env.GEMINI_API_KEY,
+        });
+
+        // Embed the user's latest query
+        const embeddingResponse = await ai.models.embedContent({
+          model: "text-embedding-004",
+          contents: latestUserMessage.content,
+        });
+
+        const queryEmbedding = embeddingResponse.embeddings?.[0]?.values;
+
+        if (queryEmbedding && queryEmbedding.length > 0) {
+          const formattedQueryEmbedding = `[${queryEmbedding.join(',')}]`;
+
+          // Perform vector search
+          // Note: <-> is the Euclidean distance operator in pgvector
+          const relevantChunks = await prisma.$queryRaw`
+            SELECT
+              c.content,
+              d.filename,
+              c.id
+            FROM "DocumentChunk" c
+            JOIN "Document" d ON c."documentId" = d.id
+            WHERE d."sessionId" = ${sessionId} AND d.status = 'COMPLETED'
+            ORDER BY c.embedding <-> ${formattedQueryEmbedding}::vector
+            LIMIT 5;
+          ` as any[];
+
+          if (relevantChunks && relevantChunks.length > 0) {
+             const contextContent = relevantChunks.map(chunk =>
+               `[Source: ${chunk.filename}]\n${chunk.content}`
+             ).join("\n\n");
+
+             const systemPrompt = `You have been provided with the following context documents to help answer the user's question.
+
+Context Documents:
+` + contextContent + `
+
+Instructions:
+1. Use the provided context documents to answer the user's question.
+2. If the context documents do not contain enough information to answer the question, clearly state that you cannot answer the question based on the provided documents.
+3. When using information from the context, provide inline citations using the source filename provided in the context (e.g., [Source: filename.pdf]). Do not fabricate citations or make up information.
+`;
+             relevantMessages = [
+                 { id: "system-doc-context", role: "user", content: systemPrompt },
+                 ...relevantMessages
+             ];
+          }
+        }
+      } catch (err) {
+         console.error("Failed to retrieve document context:", err);
+         // Gracefully continue without RAG context if search fails
+      }
     }
 
     // Fetch response stream from AI provider

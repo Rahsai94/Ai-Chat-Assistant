@@ -4,6 +4,7 @@ import { useRef, useEffect } from "react"
 import { Send, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { DocumentUpload } from "./document-upload"
 
 interface MessageComposerProps {
   input: string
@@ -41,11 +42,14 @@ export function MessageComposer({
     }
   }
 
+
   return (
     <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-background via-background/80 to-transparent pt-6 pb-4 px-4">
-      <div className="max-w-3xl mx-auto relative flex items-end w-full border bg-background rounded-xl overflow-hidden shadow-sm focus-within:ring-1 focus-within:ring-primary transition-all">
+      <div className="max-w-3xl mx-auto relative flex flex-col w-full border bg-background rounded-xl overflow-hidden shadow-sm focus-within:ring-1 focus-within:ring-primary transition-all">
+        <DocumentUpload />
         <form
           onSubmit={(e) => {
+
             e.preventDefault()
             if (input.trim() && !isLoading) {
               handleSubmit(e)
