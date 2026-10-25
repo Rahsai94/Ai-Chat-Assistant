@@ -30,7 +30,8 @@ export function DocumentUpload() {
   }
 
   useEffect(() => {
-    fetchDocuments()
+    // Fetch immediately inside effect
+    setTimeout(fetchDocuments, 0)
     // Poll for status updates if any are pending
     const interval = setInterval(() => {
       setDocuments((prev) => {
@@ -81,8 +82,8 @@ export function DocumentUpload() {
       }
 
       await fetchDocuments()
-    } catch (err: any) {
-      setUploadError(err.message || "Upload failed")
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed")
     } finally {
       setIsUploading(false)
     }
