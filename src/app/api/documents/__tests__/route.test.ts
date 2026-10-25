@@ -9,8 +9,8 @@ vi.mock("@vercel/functions", () => ({
 
 import { POST, GET } from "../route";
 import { prisma } from "@/lib/db/prisma";
-import * as sessionModule from "@/lib/auth/session";
-import * as rateLimitModule from "@/lib/rate-limit";
+
+
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
@@ -96,7 +96,7 @@ describe("Document API", () => {
 
     it("should reject files over 5MB", async () => {
       const request = new Request("http://localhost/api/documents", { method: "POST" });
-      const spy = vi.spyOn(request, 'formData').mockResolvedValue({
+      vi.spyOn(request, 'formData').mockResolvedValue({
         get: (key: string) => {
           if (key === 'file') return { name: 'large.txt', size: 6 * 1024 * 1024, type: 'text/plain' };
           return null;
@@ -133,7 +133,7 @@ describe("Document API", () => {
       vi.mocked(prisma.document.findMany).mockResolvedValue(mockDocs as any);
 
       const request = new Request("http://localhost/api/documents");
-      const response = await GET(request);
+      const response = await GET(request as any);
 
       expect(response.status).toBe(200);
       const data = await response.json();

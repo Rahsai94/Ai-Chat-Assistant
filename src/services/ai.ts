@@ -58,7 +58,7 @@ export async function generateChatResponse(messages: Message[]) {
   }
 }
 
-export async function generateChatStream(messages: Message[]) {
+export async function generateChatStream(messages: Message[], systemInstruction?: string) {
   // Validate model config is available
   if (!defaultModel) {
     throw new Error("AI Model not configured.");
@@ -74,6 +74,7 @@ export async function generateChatStream(messages: Message[]) {
     const stream = await ai.models.generateContentStream({
       model: defaultModel,
       contents,
+      config: systemInstruction ? { systemInstruction } : undefined,
     });
     return { success: true, stream };
   } catch (error: any) {
