@@ -17,6 +17,7 @@ describe('Rate Limit', () => {
   });
 
   it('should allow request when within limits', async () => {
+    vi.mocked(prisma.rateLimit.upsert).mockResolvedValue({ id: 'test-id', createdAt: new Date(), updatedAt: new Date(),
     vi.mocked(prisma.rateLimit.upsert).mockResolvedValue({
       id: 'test-id',
       createdAt: new Date(),
@@ -32,6 +33,7 @@ describe('Rate Limit', () => {
   });
 
   it('should deny request when limit exceeded', async () => {
+    vi.mocked(prisma.rateLimit.upsert).mockResolvedValue({ id: 'test-id', createdAt: new Date(), updatedAt: new Date(),
     vi.mocked(prisma.rateLimit.upsert).mockResolvedValue({
       id: 'test-id',
       createdAt: new Date(),
@@ -47,6 +49,7 @@ describe('Rate Limit', () => {
   });
 
   it('should reset limit when window expired', async () => {
+    vi.mocked(prisma.rateLimit.upsert).mockResolvedValue({ id: 'test-id', createdAt: new Date(), updatedAt: new Date(),
     vi.mocked(prisma.rateLimit.upsert).mockResolvedValue({
       id: 'test-id',
       createdAt: new Date(),
@@ -55,6 +58,7 @@ describe('Rate Limit', () => {
       points: 6,
       resetAt: new Date(Date.now() - 10000), // Expired
     });
+    vi.mocked(prisma.rateLimit.update).mockResolvedValue({ id: 'test-id', createdAt: new Date(), updatedAt: new Date(),
     vi.mocked(prisma.rateLimit.update).mockResolvedValue({
       id: 'test-id',
       createdAt: new Date(),

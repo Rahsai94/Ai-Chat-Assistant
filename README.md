@@ -48,6 +48,8 @@ A responsive, full-stack AI chat application built with Next.js App Router, inte
 - **Database:** PostgreSQL via Prisma
 - **AI Integration:** Google Gemini API SDK (`@google/genai`)
 
+### Requirements
+- PostgreSQL with `pgvector` extension enabled.
 ## Deployment to Vercel
 
 The application is configured to be deployed seamlessly to Vercel.
