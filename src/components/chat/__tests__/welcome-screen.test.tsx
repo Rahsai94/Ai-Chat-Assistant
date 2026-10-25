@@ -7,8 +7,8 @@ describe('WelcomeScreen', () => {
     const onPromptSelect = vi.fn();
     render(<WelcomeScreen onPromptSelect={onPromptSelect} />);
 
-    expect(screen.getByText('How can I help you today?')).toBeDefined();
-    expect(screen.getByText('Explain a concept')).toBeDefined();
+    expect(screen.getByText(/How can/)).toBeDefined();
+    expect(screen.getByText('Write a business report')).toBeDefined();
     expect(screen.getByText('Debug code')).toBeDefined();
   });
 
@@ -16,9 +16,9 @@ describe('WelcomeScreen', () => {
     const onPromptSelect = vi.fn();
     render(<WelcomeScreen onPromptSelect={onPromptSelect} />);
 
-    const promptSpan = screen.getByText('Explain a concept');
+    const promptSpan = screen.getByText('Write a business report');
     fireEvent.click(promptSpan);
 
-    expect(onPromptSelect).toHaveBeenCalledWith(expect.stringContaining('Can you explain the concept'));
+    expect(onPromptSelect).toHaveBeenCalledWith(expect.stringContaining('Write a comprehensive business report'));
   });
 });

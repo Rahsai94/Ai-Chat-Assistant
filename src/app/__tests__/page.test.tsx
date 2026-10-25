@@ -4,6 +4,6 @@ import { expect, test } from 'vitest';
 
 test('renders the homepage with correct heading', () => {
   render(<Home />);
-  const heading = screen.getByRole('heading', { name: /AI Chat Assistant/i });
+  const heading = screen.getByRole('heading', { name: /Welcome to Vortex/i });
   expect(heading).toBeDefined();
 });

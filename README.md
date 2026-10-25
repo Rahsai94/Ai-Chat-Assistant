@@ -1,110 +1,121 @@
-# AI Chat Assistant
+# Vortex: AI Chat Assistant
 
-A responsive, full-stack AI chat application built with Next.js App Router, integrating Gemini API for conversational AI.
+Vortex is a responsive, full-stack AI chat application built to demonstrate modern web development practices, AI integration, and robust software architecture.
 
-## Current Implementation Status
-**Phase 1 Complete:**
-- Next.js 16+ App Router initialization
-- TypeScript (Strict Mode) and Tailwind CSS configured
-- `shadcn/ui` initialized
-- Testing environment (Vitest + React Testing Library) established
-- `.env.example` created with required variables
-- Basic Application Shell and Homepage implemented
+## Overview and Problem Solved
+Traditional static web applications often lack intelligent, context-aware interaction. Vortex solves this by providing a seamless conversational interface powered by Google's Gemini API. It enables users to have interactive, intelligent dialogues, analyze uploaded documents via Retrieval-Augmented Generation (RAG), and maintain conversational context securely.
 
-## Setup Instructions
+## Key Features
+### Implemented
+- **Conversational AI:** Real-time streaming responses powered by Gemini 2.5 Flash via Server-Sent Events (SSE).
+- **Retrieval-Augmented Generation (RAG):** Upload PDFs and TXT files, chunk and embed them using `text-embedding-004`, and query them contextually.
+- **Secure Anonymous Sessions:** Conversational history and RAG documents are strictly scoped to an anonymous browser session (`chat_session_id`), preventing IDOR vulnerabilities.
+- **Rate Limiting:** Custom PostgreSQL-based rate limiting to prevent abuse without requiring a separate Redis cluster.
+- **Responsive UI:** Dark/Light mode theme, modern interface built with Tailwind CSS and `shadcn/ui`.
+- **Markdown Rendering:** Proper rendering of AI responses including code blocks via `react-markdown`.
 
-1. **Clone and Install:**
-   ```bash
-   npm install
-   ```
+### Planned
+- User authentication and persistent cross-device account history.
+- Voice-to-text input and text-to-speech output.
+- Web search integration to augment LLM knowledge with live data.
 
-2. **Environment Variables:**
-   Copy the example environment file and fill in your details:
-   ```bash
-   cp .env.example .env.local
-   ```
-   Ensure you provide a valid `DATABASE_URL` and `GEMINI_API_KEY`.
-
-3. **Database Setup:**
-   Initialize your PostgreSQL database and run the Prisma migrations:
-   ```bash
-   npx prisma migrate dev
-   ```
-
-4. **Development Server:**
-   ```bash
-   npm run dev
-   ```
-   Visit `http://localhost:3000` to view the app.
-
-4. **Testing and Linting:**
-   - Run type checks: `npm run typecheck`
-   - Run linter: `npm run lint`
-   - Run tests: `npm run test`
+## Technology Stack
+- **Frontend:** Next.js 15 (App Router), React 19, Tailwind CSS, `shadcn/ui`, Radix UI, Lucide React.
+- **Backend:** Next.js Route Handlers (Serverless).
+- **Database:** PostgreSQL (Vercel Postgres/Neon) with `pgvector` extension.
+- **ORM:** Prisma v5.
+- **AI/LLM:** Google Gemini API (`@google/genai`).
+- **Testing:** Vitest, React Testing Library, JSDOM.
 
 ## Architecture Overview
-- **Frontend:** Next.js App Router, Tailwind CSS, shadcn/ui
-- **Backend:** Next.js Route Handlers
-- **Database:** PostgreSQL via Prisma
-- **AI Integration:** Google Gemini API SDK (`@google/genai`)
+Vortex uses a Serverless Next.js architecture. The frontend initiates requests to backend Route Handlers, which enforce rate limits, manage sessions, and securely communicate with the database and Google's Gemini API. Background tasks, such as document processing (parsing, chunking, embedding), leverage `@vercel/functions` (`waitUntil`) to execute without blocking the main request thread.
 
-### Requirements
-- PostgreSQL with `pgvector` extension enabled.
-## Deployment to Vercel
-
-The application is configured to be deployed seamlessly to Vercel.
-
-### Prerequisites
-
-1.  **Vercel Account:** A Vercel account linked to your Git provider (GitHub, GitLab, or Bitbucket).
-2.  **PostgreSQL Database:** A publicly accessible PostgreSQL database (e.g., Vercel Postgres, Supabase, Neon).
-3.  **Gemini API Key:** A valid API key from Google AI Studio.
-
-### Required Environment Variables (Production)
-
-You must configure the following environment variables in your Vercel project settings *before* deploying:
-
-*   `DATABASE_URL`: The connection string for your production PostgreSQL database. **Note:** Vercel requires connection pooling for serverless environments (typically using Prisma Accelerate or PgBouncer in Supabase/Neon). Adjust the URL or use connection pooling accordingly.
-*   `GEMINI_API_KEY`: Your production Gemini API key. This is a secure server-side secret and must not be exposed to the client.
-*   `GEMINI_MODEL`: (Optional) The model to use (e.g., `gemini-2.5-flash`). Defaults to `gemini-2.5-flash`.
-*   `NEXTAUTH_SECRET`: A strong, randomly generated string. You can generate one using `openssl rand -base64 32`.
-*   `NEXTAUTH_URL`: The canonical URL of your deployed application (e.g., `https://your-app.vercel.app`).
-*   `KV_REST_API_URL` & `KV_REST_API_TOKEN`: (Optional) If you are using Upstash Redis for rate limiting, provide these credentials.
-
-### Deployment Steps
-
-1.  **Push to Git:** Ensure your code is pushed to a repository on GitHub, GitLab, or Bitbucket.
-2.  **Import Project:** Go to the Vercel dashboard and click "Add New..." -> "Project". Import your repository.
-3.  **Configure Project:**
-    *   **Framework Preset:** Vercel should automatically detect **Next.js**.
-    *   **Build Command:** Vercel defaults to `next build`. This is correct.
-    *   **Install Command:** Vercel defaults to `npm install`. This is correct.
-    *   **Environment Variables:** Add all the required production environment variables listed above.
-4.  **Deploy:** Click "Deploy".
-
-### Database Migrations in Production
-
-For serverless deployments like Vercel, the `postinstall` script or Vercel Build Command should ideally handle migrations if they are safe to run automatically. Alternatively, run migrations locally against your production database before deploying code that depends on the new schema:
-
-```bash
-DATABASE_URL="your_production_db_url" npx prisma migrate deploy
+### Architecture Diagram
+```mermaid
+graph TD
+    Client[Browser/Client] -->|HTTP/SSE| NextJS[Next.js App Router]
+    NextJS -->|Server Actions/API Routes| Auth[Session Auth Middleware]
+    Auth --> RateLimit[PostgreSQL Rate Limiter]
+    RateLimit --> Logic[Application Logic]
+    Logic -->|Prisma ORM| DB[(PostgreSQL + pgvector)]
+    Logic -->|SDK| Gemini[Google Gemini API]
 ```
-*Note: Do not run `migrate dev` against a production database.*
 
-### Production Smoke-Test Checklist
+### Conversation Request Flow
+```mermaid
+sequenceDiagram
+    participant User
+    participant Browser
+    participant API as Next.js API (/api/chat)
+    participant DB as PostgreSQL
+    participant AI as Gemini API
 
-After deploying, verify the following:
+    User->>Browser: Types message & clicks send
+    Browser->>API: POST /api/chat (message history, context)
+    API->>DB: Check rate limits
+    API->>DB: Validate session & retrieve conversation
+    API->>DB: (If RAG) Vector similarity search for context
+    API->>AI: Generate content stream (Prompt + Context)
+    AI-->>API: Streamed chunks (SSE)
+    API-->>Browser: Streamed text response
+    Browser-->>User: Updates UI incrementally
+    API->>DB: Save complete AI message asynchronously
+```
 
-- [ ] **Home Page:** Loads correctly without errors.
-- [ ] **Chat Interface:** You can initiate a new chat.
-- [ ] **AI Response:** Sending a message successfully returns a streamed response from the Gemini API.
-- [ ] **History:** Refreshing the page or opening a new tab correctly loads past conversations (if persistent sessions are configured) or starts fresh correctly.
-- [ ] **Error Handling:** Intentionally trigger an error (e.g. invalid query) to ensure the UI displays a friendly error message and no internal stack traces are leaked.
-- [ ] **Rate Limiting:** (If configured) Send rapid messages to verify the rate limit blocks excessive requests gracefully.
+## Database Schema Overview
+The database uses PostgreSQL with the `pgvector` extension. Key models include:
+- `Conversation`: Groups messages. Linked to a `sessionId`.
+- `Message`: Individual chat messages (user or assistant). Tracks status (`completed`, `failed`).
+- `Document`: Metadata for uploaded files (PDF/TXT) scoped to a `sessionId`.
+- `DocumentChunk`: Text chunks from documents with `vector` embeddings for similarity search.
+- `RateLimit`: Tracks API usage per endpoint/session.
 
-## Known Limitations and Troubleshooting
+## AI Provider Integration & Context Strategy
+Vortex utilizes the official `@google/genai` SDK. To protect API keys, all AI integrations occur server-side (`server-only`). Conversational context is maintained by passing the last 50 messages of the conversation to the model, ensuring the AI can reference recent dialogue without exceeding token limits.
 
-*   **Streaming Timeouts:** Vercel's Hobby plan limits serverless function execution to 10 seconds (or 60 seconds on Pro). Streaming responses bypass some limits, but Next.js API routes handling the initial connection can time out. Ensure the application leverages Next.js App Router streaming effectively.
-*   **Prisma Cold Starts:** In serverless environments, Prisma may take slightly longer to connect during cold starts. Using a connection pooler is highly recommended.
-*   **Database Connections:** Vercel functions scale up concurrently. Without connection pooling, you may easily exhaust your PostgreSQL database connection limits.
-*   **Failed Builds:** If type-checking fails during the build step, Vercel will halt deployment. Run `npm run typecheck` locally to catch errors early.
+## RAG Architecture and Limitations
+RAG is implemented natively within the application. Uploaded PDFs are parsed using `pdf-parse`, chunked, and embedded via Gemini's `text-embedding-004`. The embeddings are stored in PostgreSQL using `pgvector`.
+* **Limitations:** PDF parsing is currently done in memory in the Next.js process, which may struggle with very large PDFs in a constrained serverless environment. Background processing relies on `waitUntil`, which has execution time limits on standard Vercel plans (10s-60s).
+
+## Local Setup
+
+1. **Clone the repository and install dependencies:**
+   `git clone <repo-url>`
+   `cd vortex`
+   `npm install --legacy-peer-deps`
+
+2. **Configure Environment Variables:**
+   `cp .env.example .env.local`
+   *Fill in `DATABASE_URL` (requires a pgvector-enabled Postgres DB) and `GEMINI_API_KEY`.*
+
+3. **Database Migration:**
+   `npx prisma migrate dev`
+
+4. **Start Development Server:**
+   `npm run dev` (run in background if needed)
+
+## Environment Variable Reference
+- `DATABASE_URL`: Full connection string to the PostgreSQL database.
+- `GEMINI_API_KEY`: API key from Google AI Studio.
+- `GEMINI_MODEL`: (Optional) Specifies the Gemini model (defaults to `gemini-2.5-flash`).
+
+## Testing
+The project features comprehensive unit and integration tests using Vitest.
+To run tests:
+`npm run test`
+
+To run linting and typechecking:
+`npm run lint`
+`npm run typecheck`
+
+## Deployment
+Vortex is optimized for Vercel deployment. Ensure you link a PostgreSQL database (like Vercel Postgres or Supabase) and configure the `DATABASE_URL` and `GEMINI_API_KEY` in your Vercel Project Settings. Build command: `npm run build`.
+
+## Security and Privacy
+- **Anonymous Sessions:** Users are assigned an anonymous UUID cookie (`chat_session_id`). All database queries require this ID, inherently preventing Insecure Direct Object Reference (IDOR) across users.
+- **Prompt Injection Defense:** Uploaded document content is strictly passed as user context, not system instructions, to mitigate basic prompt injection vectors.
+- **Secrets Management:** The Gemini API key is isolated server-side.
+
+## Known Limitations
+- RAG does not currently support complex tabular data extraction from PDFs.
+- Long conversations over 50 messages will have earlier context truncated to preserve token efficiency.

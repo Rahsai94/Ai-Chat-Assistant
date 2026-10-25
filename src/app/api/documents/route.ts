@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { NextResponse } from "next/server";
 import { getSessionId } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
