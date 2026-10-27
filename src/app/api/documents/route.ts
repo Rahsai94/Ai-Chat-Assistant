@@ -67,10 +67,14 @@ export async function POST(req: Request) {
       },
     });
 
+    // Read the file buffer before returning the response
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const fileType = file.type;
 
     // Start background processing
     waitUntil(
-      processDocument(file, document.id).catch(async (error) => {
+      processDocument(buffer, fileType, document.id).catch(async (error) => {
         console.error(`Failed to process document ${document.id}:`, error);
         await prisma.document.update({
           where: { id: document.id },
@@ -89,21 +93,19 @@ export async function POST(req: Request) {
   }
 }
 
-async function processDocument(file: File, documentId: string) {
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+async function processDocument(buffer: Buffer, fileType: string, documentId: string) {
   let text = "";
 
-  if (file.type === "application/pdf") {
+  if (fileType === "application/pdf") {
     try {
         const pdfParseMod = (await import("pdf-parse")) as any;
         const pdfParse = pdfParseMod.default || pdfParseMod;
         const pdfData = await pdfParse(buffer);
         text = pdfData.text;
-    } catch (e) {
+    } catch (_e: any) {
          throw new Error("Failed to parse PDF file. Ensure it is a valid PDF.");
     }
-  } else if (file.type === "text/plain") {
+  } else if (fileType === "text/plain") {
     text = buffer.toString("utf-8");
   }
 
@@ -164,7 +166,7 @@ async function processDocument(file: File, documentId: string) {
   });
 }
 
-export async function GET(req: Request) {
+export async function GET(_req: Request) {
   try {
     const sessionId = await getSessionId();
 

@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     const { messages, conversationId } = parseResult.data;
 
 
-    let relevantMessages = messages.slice(-50); // Hard cap at last 50
+    const relevantMessages = messages.slice(-50); // Hard cap at last 50
 
     // Handle DB persistence for user message
     let currentConversationId = conversationId;
@@ -75,6 +75,7 @@ export async function POST(req: Request) {
     }
 
     // Check for relevant documents
+    let systemInstruction;
     if (process.env.GEMINI_API_KEY) {
       try {
         const ai = new GoogleGenAI({
@@ -111,20 +112,16 @@ export async function POST(req: Request) {
                `[Source: ${chunk.filename}]\n${chunk.content}`
              ).join("\n\n");
 
-             const systemPrompt = `You have been provided with the following context documents to help answer the user's question.
+             systemInstruction = `You have been provided with the following context documents to help answer the user's question.
 
 Context Documents:
-` + contextContent + `
+${contextContent}
 
 Instructions:
 1. Use the provided context documents to answer the user's question.
 2. If the context documents do not contain enough information to answer the question, clearly state that you cannot answer the question based on the provided documents.
 3. When using information from the context, provide inline citations using the source filename provided in the context (e.g., [Source: filename.pdf]). Do not fabricate citations or make up information.
 `;
-             relevantMessages = [
-                 { id: "system-doc-context", role: "user", content: systemPrompt },
-                 ...relevantMessages
-             ];
           }
         }
       } catch (err) {
@@ -134,7 +131,7 @@ Instructions:
     }
 
     // Fetch response stream from AI provider
-    const aiResponse = await generateChatStream(relevantMessages);
+    const aiResponse = await generateChatStream(relevantMessages, systemInstruction);
 
     if (!aiResponse.success || !aiResponse.stream) {
       return NextResponse.json(
